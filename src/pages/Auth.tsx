@@ -104,13 +104,13 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
 
       <main className="flex flex-1 items-center justify-center px-5 py-12">
         <div className="w-full max-w-sm">
-          <p className="eyebrow">Staff access</p>
+          <p className="eyebrow">Workspace access</p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight">
-            Sign in to the desk
+            Sign in to GymNetic
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Version 1 is for gym staff only — admins manage the roster and log
-            check-ins.
+            One account per workspace, for gym owners and their front desk.
+            Member accounts are issued by the gym itself.
           </p>
 
           <div className="mt-8 rounded-lg border border-border bg-card p-6">
@@ -146,7 +146,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   )}
                 </Button>
                 {error && (
-                  <p className="mt-3 text-sm text-rose-700">{error}</p>
+                  <p className="mt-3 text-sm text-rose-300">{error}</p>
                 )}
 
                 <div className="my-6 h-px w-full bg-border" />
@@ -162,8 +162,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   Continue as guest
                 </Button>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Guest access opens the same desk with a throwaway account —
-                  useful for a first look.
+                  Guest access opens a throwaway workspace with the sample
+                  catalog, schedule and roster already in place.
                 </p>
               </form>
             ) : (
@@ -207,7 +207,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                 </div>
 
                 {error && (
-                  <p className="mt-3 text-center text-sm text-rose-700">
+                  <p className="mt-3 text-center text-sm text-rose-300">
                     {error}
                   </p>
                 )}
@@ -242,8 +242,9 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             )}
           </div>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            Signed in? You will land on the roster.
+          <p className="mt-6 text-center text-xs leading-5 text-muted-foreground">
+            New here? This form creates your workspace — the same email signs
+            you in from then on, and you land on the overview.
           </p>
         </div>
       </main>

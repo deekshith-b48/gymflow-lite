@@ -17,6 +17,12 @@ const AppShell = lazy(() =>
     default: module.AppShell,
   })),
 );
+const Overview = lazy(() => import("./pages/Overview.tsx"));
+const Catalog = lazy(() => import("./pages/Catalog.tsx"));
+const CatalogItemPage = lazy(() => import("./pages/CatalogItem.tsx"));
+const Schedule = lazy(() => import("./pages/Schedule.tsx"));
+const Feed = lazy(() => import("./pages/Feed.tsx"));
+const Admin = lazy(() => import("./pages/Admin.tsx"));
 const Members = lazy(() => import("./pages/Members.tsx"));
 const CheckIns = lazy(() => import("./pages/CheckIns.tsx"));
 const MemberDetail = lazy(() => import("./pages/MemberDetail.tsx"));
@@ -145,12 +151,18 @@ createRoot(document.getElementById("root")!).render(
                   </RequireAuth>
                 }
               >
-                <Route index element={<Members />} />
-                <Route path="check-ins" element={<CheckIns />} />
+                <Route index element={<Overview />} />
+                <Route path="catalog" element={<Catalog />} />
+                <Route path="catalog/:itemId" element={<CatalogItemPage />} />
+                <Route path="schedule" element={<Schedule />} />
+                <Route path="feed" element={<Feed />} />
+                <Route path="members" element={<Members />} />
                 <Route
                   path="members/:memberId"
                   element={<MemberDetail />}
                 />
+                <Route path="check-ins" element={<CheckIns />} />
+                <Route path="admin" element={<Admin />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

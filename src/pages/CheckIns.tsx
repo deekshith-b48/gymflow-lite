@@ -189,7 +189,7 @@ export default function CheckIns() {
                       </span>
                     </span>
                     {isIn ? (
-                      <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-emerald-800">
+                      <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-emerald-300">
                         <Check className="size-3.5" />
                         IN
                       </span>
@@ -250,7 +250,7 @@ export default function CheckIns() {
                     "hidden rounded-full border px-2 py-0.5 font-mono text-[10.5px] sm:inline-flex",
                     item.status === "active"
                       ? "border-border bg-muted text-muted-foreground"
-                      : "border-rose-600/30 bg-rose-50 text-rose-700",
+                      : "border-rose-500/40 bg-rose-500/15 text-rose-300",
                   )}
                 >
                   {item.status}

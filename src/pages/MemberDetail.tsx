@@ -43,9 +43,9 @@ import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 
 /**
- * The member's home screen. Version 1's one non-negotiable for members is
- * plan & dues, so that block sits at the top, unmissable, above the admin
- * tooling (check in, edit, remove) that staff also need here.
+ * The member's home screen. Plan & dues is the one thing a member needs at a
+ * glance, so it sits at the top, above the operator tooling (check in, edit,
+ * remove) that the front desk also needs here.
  */
 export default function MemberDetail() {
   const { memberId } = useParams<{ memberId: string }>();
@@ -79,7 +79,7 @@ export default function MemberDetail() {
           The record was deleted, or the link is out of date.
         </p>
         <Button asChild variant="outline" className="mt-5 shadow-none">
-          <Link to="/dashboard">Back to the roster</Link>
+          <Link to="/dashboard/members">Back to the roster</Link>
         </Button>
       </div>
     );
@@ -126,7 +126,7 @@ export default function MemberDetail() {
     try {
       await removeMember({ memberId: member._id });
       toast(`${member.name} removed from the roster`);
-      navigate("/dashboard");
+      navigate("/dashboard/members");
     } catch (caught) {
       toast.error(
         caught instanceof Error ? caught.message : "Could not remove member.",
@@ -137,7 +137,7 @@ export default function MemberDetail() {
   return (
     <div className="flex flex-col gap-7">
       <Link
-        to="/dashboard"
+        to="/dashboard/members"
         className="inline-flex w-fit items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" />
@@ -266,7 +266,7 @@ export default function MemberDetail() {
 
           <Button
             variant="ghost"
-            className="ml-auto gap-2 text-muted-foreground hover:text-rose-700"
+            className="ml-auto gap-2 text-muted-foreground hover:text-rose-300"
             onClick={() => setConfirmingDelete(true)}
           >
             <Trash2 className="size-4" />

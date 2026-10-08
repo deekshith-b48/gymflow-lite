@@ -196,8 +196,8 @@ export function duesInfo(
 
 const DUES_TONE: Record<DuesState, string> = {
   paid: "border-border bg-muted text-muted-foreground",
-  due: "border-foreground/25 bg-background text-foreground",
-  overdue: "border-rose-600/30 bg-rose-50 text-rose-700",
+  due: "border-amber-400/35 bg-amber-400/10 text-amber-300",
+  overdue: "border-rose-500/40 bg-rose-500/15 text-rose-300",
 };
 
 export function duesBadgeClass(state: DuesState) {
@@ -205,9 +205,103 @@ export function duesBadgeClass(state: DuesState) {
 }
 
 export function duesTextClass(state: DuesState) {
-  if (state === "overdue") return "text-rose-700";
-  if (state === "due") return "text-foreground";
+  if (state === "overdue") return "text-rose-300";
+  if (state === "due") return "text-amber-300";
   return "text-muted-foreground";
+}
+
+/* ----------------------------------------------------------------- catalog */
+
+export const CADENCE_OPTIONS = [
+  { value: "one_time", label: "One-time" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "annual", label: "Annual" },
+] as const;
+
+export type Cadence = (typeof CADENCE_OPTIONS)[number]["value"];
+
+export const CATALOG_STATUS_OPTIONS = [
+  { value: "published", label: "Published" },
+  { value: "draft", label: "Draft" },
+  { value: "archived", label: "Archived" },
+] as const;
+
+export type CatalogStatus = (typeof CATALOG_STATUS_OPTIONS)[number]["value"];
+
+export const POST_KIND_OPTIONS = [
+  { value: "announcement", label: "Announcement" },
+  { value: "update", label: "Product update" },
+  { value: "note", label: "Internal note" },
+] as const;
+
+export type PostKind = (typeof POST_KIND_OPTIONS)[number]["value"];
+
+export const ORDER_STATUS_OPTIONS = [
+  { value: "paid", label: "Paid" },
+  { value: "pending", label: "Pending" },
+  { value: "refunded", label: "Refunded" },
+  { value: "cancelled", label: "Cancelled" },
+] as const;
+
+export type OrderStatus = (typeof ORDER_STATUS_OPTIONS)[number]["value"];
+
+const CADENCE_SUFFIX: Record<string, string> = {
+  monthly: "/mo",
+  quarterly: "/qtr",
+  annual: "/yr",
+};
+
+/** "$79 /mo" — one-time prices carry no suffix. */
+export function formatPrice(priceCents: number, cadence: string) {
+  return `${formatMoney(priceCents)}${CADENCE_SUFFIX[cadence] ?? ""}`;
+}
+
+export function cadenceLabel(cadence: string) {
+  return CADENCE_OPTIONS.find((option) => option.value === cadence)?.label ?? cadence;
+}
+
+export function catalogStatusLabel(status: string) {
+  return (
+    CATALOG_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
+    status
+  );
+}
+
+export function postKindLabel(kind: string) {
+  return POST_KIND_OPTIONS.find((option) => option.value === kind)?.label ?? kind;
+}
+
+/** Chip tones. Every status reads at a glance without a legend. */
+export function orderStatusClass(status: string) {
+  if (status === "paid") return "border-emerald-400/35 bg-emerald-400/10 text-emerald-300";
+  if (status === "pending") return "border-amber-400/35 bg-amber-400/10 text-amber-300";
+  if (status === "refunded") return "border-sky-400/35 bg-sky-400/10 text-sky-300";
+  return "border-border bg-muted text-muted-foreground";
+}
+
+export function catalogStatusClass(status: string) {
+  if (status === "published") return "border-lime-400/40 bg-lime-400/10 text-lime-300";
+  if (status === "draft") return "border-border bg-muted text-muted-foreground";
+  return "border-rose-500/30 bg-rose-500/10 text-rose-300";
+}
+
+/** Category accents, assigned by first letter so a category keeps its colour. */
+const CATEGORY_TONES = [
+  "border-violet-400/40 bg-violet-400/10 text-violet-200",
+  "border-cyan-400/40 bg-cyan-400/10 text-cyan-200",
+  "border-lime-400/40 bg-lime-400/10 text-lime-200",
+  "border-fuchsia-400/40 bg-fuchsia-400/10 text-fuchsia-200",
+  "border-amber-400/40 bg-amber-400/10 text-amber-200",
+];
+
+export function categoryTone(category: string) {
+  const key = category.trim().toLowerCase();
+  let hash = 0;
+  for (let index = 0; index < key.length; index += 1) {
+    hash = (hash * 31 + key.charCodeAt(index)) % 997;
+  }
+  return CATEGORY_TONES[hash % CATEGORY_TONES.length];
 }
 
 /** Cycle progress (0–1) for the plan progress hairline. */

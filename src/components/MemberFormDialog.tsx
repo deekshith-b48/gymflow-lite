@@ -263,7 +263,7 @@ function MemberForm({
           />
         </div>
 
-        {error && <p className="text-sm text-rose-700">{error}</p>}
+        {error && <p className="text-sm text-rose-300">{error}</p>}
       </div>
 
       <DialogFooter className="gap-2">

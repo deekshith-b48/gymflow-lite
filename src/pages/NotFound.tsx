@@ -19,14 +19,15 @@ export default function NotFound() {
         <div className="w-full max-w-sm text-center">
           <p className="eyebrow">404</p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight">
-            Nothing is racked here
+            This page is off the map
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            That page does not exist. The desk is still where you left it.
+            There is nothing at that address. Your workspace is still where you
+            left it.
           </p>
           <div className="mt-7 flex justify-center gap-3">
             <Button asChild>
-              <Link to="/dashboard">Open the desk</Link>
+              <Link to="/dashboard">Open the workspace</Link>
             </Button>
             <Button asChild variant="outline" className="shadow-none">
               <Link to="/">Landing page</Link>

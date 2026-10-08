@@ -16,11 +16,10 @@ import {
   startOfDay,
 } from "@/lib/gym";
 import { cn } from "@/lib/utils";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { Loader2, LogIn, Plus, Search } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
-import { toast } from "sonner";
 
 const STATUS_FILTERS = [
   { value: "all", label: "All" },
@@ -40,28 +39,6 @@ export default function Members() {
 
   const roster = useQuery(api.members.list, { search, status });
   const today = useQuery(api.checkIns.today, { since: dayStart });
-
-  const seedDemo = useMutation(api.members.seedDemo);
-  const seedAttempted = useRef(false);
-
-  // A brand-new gym opens on an empty roster, which reads as a broken screen.
-  // Load the sample roster once, and never again if the desk clears it.
-  useEffect(() => {
-    if (!roster || roster.items.length > 0 || seedAttempted.current) return;
-    seedAttempted.current = true;
-    seedDemo()
-      .then((result) => {
-        if (result.seeded) {
-          toast("Sample roster loaded", {
-            description:
-              "Eight members with plans, dues and the last week of visits.",
-          });
-        }
-      })
-      .catch(() => {
-        seedAttempted.current = false;
-      });
-  }, [roster, seedDemo]);
 
   const checkedInToday = new Set(
     (today?.items ?? []).map((item) => String(item.memberId)),
@@ -204,8 +181,8 @@ export default function Members() {
                   </span>
 
                   {isIn ? (
-                    <span className="flex items-center gap-1.5 rounded-full border border-emerald-600/25 bg-emerald-50 px-2.5 py-1 font-mono text-[10.5px] text-emerald-800">
-                      <span className="size-1.5 rounded-full bg-emerald-600" />
+                    <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-400/10 px-2.5 py-1 font-mono text-[10.5px] text-emerald-300">
+                      <span className="size-1.5 rounded-full bg-emerald-400" />
                       IN
                     </span>
                   ) : (
@@ -251,7 +228,7 @@ function Stat({
       <p
         className={cn(
           "figure mt-1 text-xl font-medium",
-          tone === "alert" && "text-rose-700",
+          tone === "alert" && "text-rose-300",
         )}
       >
         {value}
