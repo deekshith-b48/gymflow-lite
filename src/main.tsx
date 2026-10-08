@@ -18,6 +18,7 @@ const AppShell = lazy(() =>
   })),
 );
 const Overview = lazy(() => import("./pages/Overview.tsx"));
+const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const Catalog = lazy(() => import("./pages/Catalog.tsx"));
 const CatalogItemPage = lazy(() => import("./pages/CatalogItem.tsx"));
 const Schedule = lazy(() => import("./pages/Schedule.tsx"));
@@ -26,6 +27,18 @@ const Admin = lazy(() => import("./pages/Admin.tsx"));
 const Members = lazy(() => import("./pages/Members.tsx"));
 const CheckIns = lazy(() => import("./pages/CheckIns.tsx"));
 const MemberDetail = lazy(() => import("./pages/MemberDetail.tsx"));
+const Attendance = lazy(() => import("./pages/Attendance.tsx"));
+const Fees = lazy(() => import("./pages/Fees.tsx"));
+const Sales = lazy(() => import("./pages/Sales.tsx"));
+const Expenses = lazy(() => import("./pages/Expenses.tsx"));
+const Withdrawals = lazy(() => import("./pages/Withdrawals.tsx"));
+const StaffPage = lazy(() => import("./pages/StaffPage.tsx"));
+const Packages = lazy(() => import("./pages/Packages.tsx"));
+const Trainers = lazy(() => import("./pages/Trainers.tsx"));
+const TrainerDetail = lazy(() => import("./pages/TrainerDetail.tsx"));
+const Notifications = lazy(() => import("./pages/Notifications.tsx"));
+const ActivityLog = lazy(() => import("./pages/ActivityLog.tsx"));
+const SettingsPage = lazy(() => import("./pages/Settings.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 // Simple loading fallback for route transitions
@@ -151,7 +164,8 @@ createRoot(document.getElementById("root")!).render(
                   </RequireAuth>
                 }
               >
-                <Route index element={<Overview />} />
+                <Route index element={<Dashboard />} />
+                <Route path="overview" element={<Overview />} />
                 <Route path="catalog" element={<Catalog />} />
                 <Route path="catalog/:itemId" element={<CatalogItemPage />} />
                 <Route path="schedule" element={<Schedule />} />
@@ -161,6 +175,18 @@ createRoot(document.getElementById("root")!).render(
                   path="members/:memberId"
                   element={<MemberDetail />}
                 />
+                <Route path="attendance" element={<Attendance />} />
+                <Route path="fees" element={<Fees />} />
+                <Route path="sales" element={<Sales />} />
+                <Route path="expenses" element={<Expenses />} />
+                <Route path="withdrawals" element={<Withdrawals />} />
+                <Route path="staff" element={<StaffPage />} />
+                <Route path="packages" element={<Packages />} />
+                <Route path="trainers" element={<Trainers />} />
+                <Route path="trainers/:trainerId" element={<TrainerDetail />} />
+                <Route path="notifications" element={<Notifications />} />
+                <Route path="activity" element={<ActivityLog />} />
+                <Route path="settings" element={<SettingsPage />} />
                 <Route path="check-ins" element={<CheckIns />} />
                 <Route path="admin" element={<Admin />} />
               </Route>

@@ -2,7 +2,9 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { memberStatusValidator } from "./schema";
+import { logActivity } from "./activity";
 import { requireStaff } from "./staff";
+import { nextMemberCode } from "./settings";
 import {
   addDays,
   duesInfo,
@@ -20,20 +22,33 @@ function clean(value: string | undefined) {
   return trimmed ? trimmed : undefined;
 }
 
+/** Storage upload URL for member photos (client posts the file directly). */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireStaff(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
 /** The roster: filtered members, each with plan label, dues state and last visit. */
 export const list = query({
   args: {
     search: v.optional(v.string()),
     status: v.optional(v.string()),
+    type: v.optional(v.string()), // member | staff | all
+    package: v.optional(v.string()), // package name | all
+    expiring: v.optional(v.string()), // 7 | 30 | all
   },
   handler: async (ctx, args) => {
     await requireStaff(ctx);
 
     const now = Date.now();
-    const [members, recentCheckIns] = await Promise.all([
+    const [members, recentCheckIns, packages] = await Promise.all([
       ctx.db.query("members").collect(),
       // enough recent visits to know when each member last trained.
       ctx.db.query("checkIns").withIndex("by_at").order("desc").take(400),
+      ctx.db.query("packages").collect(),
     ]);
 
     const lastVisit = new Map<string, number>();
@@ -49,22 +64,59 @@ export const list = query({
     const items = members
       .filter((member) => {
         if (status && member.status !== status) return false;
+        if (args.type && args.type !== "all" && (member.memberType ?? "member") !== args.type)
+          return false;
+        if (args.package && args.package !== "all") {
+          const pkg = packages.find((entry) => entry._id === member.packageId);
+          const label = pkg?.name ?? planLabel(member.plan);
+          if (label !== args.package) return false;
+        }
+        if (args.expiring && args.expiring !== "all") {
+          const days = Math.ceil((member.renewsAt - now) / DAY_MS);
+          const window = Number(args.expiring);
+          if (!(days >= 0 && days <= window)) return false;
+        }
         if (!term) return true;
-        return [member.name, member.email ?? "", member.phone ?? ""].some(
+        return [member.name, member.email ?? "", member.phone ?? "", member.memberCode ?? ""].some(
           (field) => field.toLowerCase().includes(term),
         );
       })
-      .map((member) => ({
-        ...member,
-        planLabel: planLabel(member.plan),
-        dues: duesInfo(member.duesAmountCents, member.duesDueAt, now),
-        lastCheckInAt: lastVisit.get(String(member._id)) ?? null,
-      }))
+      .map((member) => {
+        const pkg = packages.find((entry) => entry._id === member.packageId);
+        return {
+          ...member,
+          planLabel: pkg?.name ?? planLabel(member.plan),
+          dues: duesInfo(member.duesAmountCents, member.duesDueAt, now),
+          lastCheckInAt: lastVisit.get(String(member._id)) ?? null,
+        };
+      })
       .sort((a, b) => a.name.localeCompare(b.name));
+
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
 
     const stats = {
       total: members.length,
       active: members.filter((member) => member.status === "active").length,
+      newThisMonth: members.filter(
+        (member) => member.joinedAt >= monthStart.getTime(),
+      ).length,
+      regFeeCollectedCents: members.reduce(
+        (sum, member) => sum + (member.regFeeCents ?? 0),
+        0,
+      ),
+      // Audience estimates for the notifications composer, resolved server-side
+      // so the page itself never reads the clock during render.
+      expiringSoon: members.filter((member) => {
+        const days = Math.ceil((member.renewsAt - now) / DAY_MS);
+        return days >= 0 && days <= 7;
+      }).length,
+      inactive14d: members.filter(
+        (member) =>
+          lastVisit.has(String(member._id)) === false ||
+          (lastVisit.get(String(member._id)) ?? 0) < now - 14 * DAY_MS,
+      ).length,
       overdue: members.filter(
         (member) =>
           duesInfo(member.duesAmountCents, member.duesDueAt, now).state ===
@@ -74,6 +126,14 @@ export const list = query({
         (sum, member) => sum + Math.max(0, member.duesAmountCents),
         0,
       ),
+      packageNames: Array.from(
+        new Set(
+          members.map((member) => {
+            const pkg = packages.find((entry) => entry._id === member.packageId);
+            return pkg?.name ?? planLabel(member.plan);
+          }),
+        ),
+      ).sort(),
     };
 
     return { items, stats };
@@ -134,6 +194,17 @@ export const create = mutation({
     firstPaymentCollected: v.boolean(),
     startedAt: v.optional(v.number()),
     note: v.optional(v.string()),
+    // profile extras from the full add-member form.
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
+    dob: v.optional(v.number()),
+    cnic: v.optional(v.string()),
+    address: v.optional(v.string()),
+    memberType: v.optional(v.union(v.literal("member"), v.literal("staff"))),
+    regFeeCents: v.optional(v.number()),
+    addOns: v.optional(v.array(v.string())),
+    packageId: v.optional(v.id("packages")),
+    trainerId: v.optional(v.id("trainers")),
+    photoStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     const staffId = await requireStaff(ctx);
@@ -146,8 +217,9 @@ export const create = mutation({
     const startedAt = args.startedAt ?? now;
     const priceCents = planPriceCents(args.plan);
     const duesAmountCents = args.firstPaymentCollected ? 0 : priceCents;
+    const memberCode = await nextMemberCode(ctx);
 
-    return await ctx.db.insert("members", {
+    const memberId = await ctx.db.insert("members", {
       name,
       email: clean(args.email),
       phone: clean(args.phone),
@@ -161,7 +233,25 @@ export const create = mutation({
       joinedAt: now,
       note: clean(args.note),
       createdBy: staffId,
+      memberCode,
+      gender: args.gender,
+      dob: args.dob,
+      cnic: clean(args.cnic),
+      address: clean(args.address),
+      memberType: args.memberType ?? "member",
+      regFeeCents: args.regFeeCents ?? 0,
+      addOns: args.addOns?.length ? args.addOns : undefined,
+      packageId: args.packageId,
+      trainerId: args.trainerId,
+      photoStorageId: args.photoStorageId,
     });
+
+    await logActivity(ctx, {
+      event: "created",
+      category: "members",
+      activity: `Added member ${name} (${memberCode})`,
+    });
+    return memberId;
   },
 });
 
@@ -174,6 +264,14 @@ export const update = mutation({
     plan: v.optional(v.string()),
     status: v.optional(memberStatusValidator),
     note: v.optional(v.string()),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
+    dob: v.optional(v.number()),
+    cnic: v.optional(v.string()),
+    address: v.optional(v.string()),
+    memberType: v.optional(v.union(v.literal("member"), v.literal("staff"))),
+    addOns: v.optional(v.array(v.string())),
+    trainerId: v.optional(v.id("trainers")),
+    photoStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     await requireStaff(ctx);
@@ -193,6 +291,21 @@ export const update = mutation({
     if (args.phone !== undefined) patch.phone = clean(args.phone);
     if (args.note !== undefined) patch.note = clean(args.note);
     if (args.status !== undefined) patch.status = args.status;
+    if (args.gender !== undefined) patch.gender = args.gender;
+    if (args.dob !== undefined) patch.dob = args.dob;
+    if (args.cnic !== undefined) patch.cnic = clean(args.cnic);
+    if (args.address !== undefined) patch.address = clean(args.address);
+    if (args.memberType !== undefined) patch.memberType = args.memberType;
+    if (args.addOns !== undefined) patch.addOns = args.addOns.length ? args.addOns : undefined;
+    if (args.trainerId !== undefined) patch.trainerId = args.trainerId;
+    if (args.photoStorageId !== undefined)
+      patch.photoStorageId = args.photoStorageId;
+    if (args.status !== undefined && args.status === "frozen") {
+      patch.frozenAt = Date.now();
+    }
+    if (args.status !== undefined && args.status === "active") {
+      patch.frozenAt = undefined;
+    }
 
     if (args.plan !== undefined && args.plan !== member.plan) {
       if (!isPlanId(args.plan)) throw new Error("Pick a plan from the list.");
@@ -205,6 +318,42 @@ export const update = mutation({
     }
 
     await ctx.db.patch(args.memberId, patch);
+
+    await logActivity(ctx, {
+      event: "updated",
+      category: "members",
+      activity: `Updated member ${member.name}${args.status ? ` — status ${args.status}` : ""}`,
+    });
+  },
+});
+
+/** One-tap lifecycle actions: freeze today, unfreeze back to active. */
+export const setLifecycle = mutation({
+  args: {
+    memberId: v.id("members"),
+    status: v.union(
+      v.literal("active"),
+      v.literal("inactive"),
+      v.literal("expired"),
+      v.literal("frozen"),
+    ),
+  },
+  handler: async (ctx, { memberId, status }) => {
+    await requireStaff(ctx);
+    const member = await ctx.db.get(memberId);
+    if (!member) throw new Error("That member no longer exists.");
+
+    await ctx.db.patch(memberId, {
+      status,
+      frozenAt: status === "frozen" ? Date.now() : undefined,
+    });
+
+    await logActivity(ctx, {
+      event: "updated",
+      category: "members",
+      activity: `${status === "frozen" ? "Froze" : "Set"} ${member.name}'s membership to ${status}`,
+    });
+    return memberId;
   },
 });
 
@@ -225,6 +374,12 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(memberId);
+
+    await logActivity(ctx, {
+      event: "deleted",
+      category: "members",
+      activity: `Removed member ${member.name} from the roster`,
+    });
   },
 });
 

@@ -1,238 +1,341 @@
 import { MemberFormDialog } from "@/components/MemberFormDialog";
+import { DataTable, type Column } from "@/components/workspace/DataTable";
+import {
+  EmptyState,
+  PageHeader,
+  SkeletonRows,
+  Stat,
+  StatGrid,
+  StatusChip,
+  SearchInput,
+} from "@/components/workspace/primitives";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
-  duesBadgeClass,
+  daysUntil,
   formatMoney,
-  formatRenewal,
-  formatVisit,
   initials,
   MEMBER_STATUS_OPTIONS,
-  startOfDay,
 } from "@/lib/gym";
-import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
-import { Loader2, LogIn, Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 
-const STATUS_FILTERS = [
-  { value: "all", label: "All" },
-  ...MEMBER_STATUS_OPTIONS,
-];
+type RosterRow = {
+  _id: Id<"members">;
+  name: string;
+  email?: string;
+  phone?: string;
+  memberCode?: string;
+  status: string;
+  planLabel: string;
+  memberType?: "member" | "staff";
+  addOns?: string[];
+  regFeeCents?: number;
+  renewsAt: number;
+  planPriceCents: number;
+  duesAmountCents: number;
+  dues: { state: string; label: string };
+  lastCheckInAt: number | null;
+};
+
+function feeStatusOf(row: RosterRow) {
+  if (row.duesAmountCents <= 0) return "paid";
+  return row.dues.state === "overdue" ? "pending" : "partial";
+}
 
 /**
- * The roster — the desk's home screen and the first thing version 1 needed.
- * Members, their plan, their dues state and when they last trained, one line
- * each, with check-in reachable without opening the member.
+ * The roster as a data table: summary cards on top, search + status/type/
+ * package/expiring filters, sortable columns and 20-per-page pagination.
  */
 export default function Members() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [type, setType] = useState("all");
+  const [packageName, setPackage] = useState("all");
+  const [expiring, setExpiring] = useState("all");
   const [adding, setAdding] = useState(false);
-  const [dayStart] = useState(() => startOfDay(Date.now()));
 
-  const roster = useQuery(api.members.list, { search, status });
-  const today = useQuery(api.checkIns.today, { since: dayStart });
-
-  const checkedInToday = new Set(
-    (today?.items ?? []).map((item) => String(item.memberId)),
-  );
+  const roster = useQuery(api.members.list, {
+    search,
+    status,
+    type,
+    package: packageName,
+    expiring,
+  });
 
   const stats = roster?.stats;
 
+  const columns: Column<RosterRow>[] = [
+    {
+      key: "code",
+      header: "Member ID",
+      sortValue: (row) => row.memberCode ?? "",
+      render: (row) => (
+        <span className="figure text-xs text-muted-foreground">
+          {row.memberCode ?? "—"}
+        </span>
+      ),
+    },
+    {
+      key: "name",
+      header: "Member",
+      sortValue: (row) => row.name,
+      render: (row) => (
+        <Link
+          to={`/dashboard/members/${row._id}`}
+          className="flex items-center gap-2.5"
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted font-mono text-[10px] font-medium">
+            {initials(row.name)}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium">
+              {row.name}
+            </span>
+            {row.email && (
+              <span className="block truncate text-xs text-muted-foreground">
+                {row.email}
+              </span>
+            )}
+          </span>
+        </Link>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortValue: (row) => row.status,
+      render: (row) => <StatusChip status={row.status} />,
+    },
+    {
+      key: "package",
+      header: "Package",
+      sortValue: (row) => row.planLabel,
+      render: (row) => <span className="text-sm">{row.planLabel}</span>,
+    },
+    {
+      key: "addons",
+      header: "Add-ons",
+      render: (row) =>
+        row.addOns?.length ? (
+          <span className="text-xs text-muted-foreground">
+            {row.addOns.join(", ")}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">None</span>
+        ),
+    },
+    {
+      key: "fee",
+      header: "Fee Status",
+      sortValue: (row) => feeStatusOf(row),
+      render: (row) => <StatusChip status={feeStatusOf(row)} />,
+    },
+    {
+      key: "due",
+      header: "Next Due",
+      sortValue: (row) => row.renewsAt,
+      render: (row) => {
+        const days = daysUntil(row.renewsAt);
+        return (
+          <span
+            className={`figure text-xs ${days < 0 ? "text-rose-300" : "text-muted-foreground"}`}
+          >
+            {new Date(row.renewsAt).toLocaleDateString("en-GB")}
+          </span>
+        );
+      },
+    },
+    {
+      key: "feeAmount",
+      header: "Package Fee",
+      align: "right",
+      sortValue: (row) => row.planPriceCents,
+      render: (row) => (
+        <span className="figure text-sm">{formatMoney(row.planPriceCents)}</span>
+      ),
+    },
+    {
+      key: "regFee",
+      header: "Reg. Fee",
+      align: "right",
+      sortValue: (row) => row.regFeeCents ?? 0,
+      render: (row) => (
+        <span className="figure text-sm">
+          {formatMoney(row.regFeeCents ?? 0)}
+        </span>
+      ),
+    },
+    {
+      key: "phone",
+      header: "Phone",
+      render: (row) => (
+        <span className="figure text-xs text-muted-foreground">
+          {row.phone ? `+92 ${row.phone}` : "—"}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-7">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="eyebrow">Roster</p>
-          <h1 className="mt-1.5 text-3xl font-bold tracking-tight">Members</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {stats
-              ? `${stats.active} active · ${stats.overdue} behind on dues`
-              : "Loading the roster…"}
-          </p>
-        </div>
-        <Button className="self-start" onClick={() => setAdding(true)}>
-          <Plus className="size-4" />
-          Add member
-        </Button>
-      </header>
-
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4">
-        <Stat label="Members" value={stats ? String(stats.total) : "—"} />
-        <Stat label="Active" value={stats ? String(stats.active) : "—"} />
-        <Stat
-          label="In today"
-          value={today ? String(today.uniqueMembers) : "—"}
-        />
-        <Stat
-          label="Dues owed"
-          value={stats ? formatMoney(stats.duesOutstandingCents) : "—"}
-          tone={stats && stats.overdue > 0 ? "alert" : "default"}
-        />
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by name, email or phone"
-            className="pl-9 shadow-none"
-            autoComplete="off"
-          />
-        </div>
-        <ToggleGroup
-          type="single"
-          value={status}
-          onValueChange={(value) => value && setStatus(value)}
-          variant="outline"
-          size="sm"
-          className="w-full justify-start sm:w-auto"
-        >
-          {STATUS_FILTERS.map((filter) => (
-            <ToggleGroupItem
-              key={filter.value}
-              value={filter.value}
-              className="flex-1 sm:flex-none"
-            >
-              {filter.label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </div>
-
-      {roster === undefined ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : roster.items.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border px-6 py-14 text-center">
-          <p className="text-sm font-medium">No members here yet</p>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-            {search || status !== "all"
-              ? "Nothing matches that filter. Try a broader search."
-              : "Add the first member and the roster, dues and check-in log start filling in."}
-          </p>
-          <Button className="mt-5" onClick={() => setAdding(true)}>
+      <PageHeader
+        eyebrow="Roster"
+        title="Members"
+        lede={
+          stats
+            ? `${stats.active} active · ${stats.overdue} behind on dues`
+            : "Loading the roster…"
+        }
+        actions={
+          <Button onClick={() => setAdding(true)}>
             <Plus className="size-4" />
             Add member
           </Button>
-        </div>
+        }
+      />
+
+      <StatGrid>
+        <Stat
+          label="Total Members"
+          value={stats ? String(stats.total) : "—"}
+          loading={stats === undefined}
+        />
+        <Stat
+          label="Active Members"
+          value={stats ? String(stats.active) : "—"}
+          loading={stats === undefined}
+          tone="good"
+        />
+        <Stat
+          label="New This Month"
+          value={stats ? String(stats.newThisMonth) : "—"}
+          loading={stats === undefined}
+        />
+        <Stat
+          label="Reg. Fee Collected"
+          value={stats ? formatMoney(stats.regFeeCollectedCents) : "—"}
+          loading={stats === undefined}
+        />
+      </StatGrid>
+
+      {roster === undefined ? (
+        <SkeletonRows rows={7} />
+      ) : roster.items.length === 0 ? (
+        <EmptyState
+          title="No members here yet"
+          body={
+            search || status !== "all" || type !== "all" || packageName !== "all"
+              ? "Nothing matches that filter. Try a broader search."
+              : "Add the first member and the roster, dues and check-in log start filling in."
+          }
+          action={
+            <Button onClick={() => setAdding(true)}>
+              <Plus className="size-4" />
+              Add member
+            </Button>
+          }
+        />
       ) : (
-        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
-          {roster.items.map((member) => {
-            const isIn = checkedInToday.has(String(member._id));
-            return (
-              <li
-                key={member._id}
-                className="flex items-center gap-3 py-2.5 pl-3 pr-3 transition-colors hover:bg-accent/50"
-              >
-                <Link
-                  to={`/dashboard/members/${member._id}`}
-                  className="flex min-w-0 flex-1 items-center gap-3"
-                >
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-muted font-mono text-[11px] font-medium tracking-tight">
-                    {initials(member.name)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">
-                        {member.name}
-                      </span>
-                      {member.status !== "active" && (
-                        <span className="eyebrow">{member.status}</span>
-                      )}
-                    </span>
-                    <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <span>{member.planLabel}</span>
-                      <span aria-hidden>·</span>
-                      <span className="figure">
-                        {formatRenewal(member.renewsAt)}
-                      </span>
-                    </span>
-                  </span>
-                </Link>
-
-                <div className="flex shrink-0 items-center gap-3">
-                  <span className="hidden text-right sm:block">
-                    <span className="eyebrow block">Last visit</span>
-                    <span className="figure text-xs text-muted-foreground">
-                      {formatVisit(member.lastCheckInAt)}
-                    </span>
-                  </span>
-
-                  <span
-                    className={cn(
-                      "rounded-full border px-2 py-0.5 font-mono text-[10.5px] tracking-wide",
-                      duesBadgeClass(member.dues.state),
-                    )}
-                  >
-                    {member.duesAmountCents > 0
-                      ? formatMoney(member.duesAmountCents)
-                      : member.dues.label}
-                  </span>
-
-                  {isIn ? (
-                    <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-400/10 px-2.5 py-1 font-mono text-[10.5px] text-emerald-300">
-                      <span className="size-1.5 rounded-full bg-emerald-400" />
-                      IN
-                    </span>
-                  ) : (
-                    <Button
-                      asChild
-                      size="sm"
-                      variant="outline"
-                      className="shadow-none"
-                    >
-                      <Link to={`/dashboard/check-ins?member=${member._id}`}>
-                        <LogIn className="size-3.5" />
-                        <span className="hidden sm:inline">Check in</span>
-                      </Link>
-                    </Button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <DataTable<RosterRow>
+          columns={columns}
+          rows={roster.items as unknown as RosterRow[]}
+          rowKey={(row) => row._id}
+          initialSort={{ key: "name", direction: "asc" }}
+          toolbar={
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <SearchInput
+                value={search}
+                onChange={setSearch}
+                placeholder="Search by name, ID, email or phone"
+              />
+              <div className="flex flex-wrap gap-2">
+                <FilterSelect
+                  value={status}
+                  onChange={setStatus}
+                  placeholder="All Status"
+                  options={MEMBER_STATUS_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                />
+                <FilterSelect
+                  value={type}
+                  onChange={setType}
+                  placeholder="All Type"
+                  options={[
+                    { value: "member", label: "Member" },
+                    { value: "staff", label: "Staff" },
+                  ]}
+                />
+                <FilterSelect
+                  value={packageName}
+                  onChange={setPackage}
+                  placeholder="All Packages"
+                  options={(stats?.packageNames ?? []).map((name) => ({
+                    value: name,
+                    label: name,
+                  }))}
+                />
+                <FilterSelect
+                  value={expiring}
+                  onChange={setExpiring}
+                  placeholder="Expiring"
+                  options={[
+                    { value: "7", label: "Expiring in 7 days" },
+                    { value: "30", label: "Expiring in 30 days" },
+                  ]}
+                />
+              </div>
+            </div>
+          }
+          actions={(row) => (
+            <Button asChild size="sm" variant="ghost" className="h-8">
+              <Link to={`/dashboard/members/${row._id}`}>Open</Link>
+            </Button>
+          )}
+        />
       )}
 
-      <MemberFormDialog
-        open={adding}
-        onOpenChange={setAdding}
-      />
+      <MemberFormDialog open={adding} onOpenChange={setAdding} />
     </div>
   );
 }
 
-function Stat({
-  label,
+function FilterSelect({
   value,
-  tone = "default",
+  onChange,
+  placeholder,
+  options,
 }: {
-  label: string;
   value: string;
-  tone?: "default" | "alert";
+  onChange: (value: string) => void;
+  placeholder: string;
+  options: { value: string; label: string }[];
 }) {
   return (
-    <div className="bg-card px-4 py-3">
-      <p className="eyebrow">{label}</p>
-      <p
-        className={cn(
-          "figure mt-1 text-xl font-medium",
-          tone === "alert" && "text-rose-300",
-        )}
-      >
-        {value}
-      </p>
-    </div>
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-9 w-auto min-w-32 bg-card shadow-none">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">{placeholder}</SelectItem>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

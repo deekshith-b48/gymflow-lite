@@ -110,7 +110,7 @@ export const status = query({
   handler: async (ctx) => {
     await requireStaff(ctx);
 
-    const [roster, workspace] = await Promise.all([
+    const [roster, workspace, finance] = await Promise.all([
       ctx.db
         .query("meta")
         .withIndex("by_key", (q) => q.eq("key", "demo-seeded"))
@@ -119,12 +119,17 @@ export const status = query({
         .query("meta")
         .withIndex("by_key", (q) => q.eq("key", "workspace-seeded"))
         .first(),
+      ctx.db
+        .query("meta")
+        .withIndex("by_key", (q) => q.eq("key", "finance-seeded"))
+        .first(),
     ]);
 
     return {
       rosterSeeded: Boolean(roster),
       workspaceSeeded: Boolean(workspace),
-      ready: Boolean(roster && workspace),
+      financeSeeded: Boolean(finance),
+      ready: Boolean(roster && workspace && finance),
     };
   },
 });
